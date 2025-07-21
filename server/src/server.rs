@@ -1,9 +1,5 @@
 use http_body_util::BodyExt;
-use hyper::{
-    Request, Response,
-    body::{Body, Bytes, Incoming},
-    service::Service,
-};
+use hyper::{Request, Response, body::Incoming, service::Service};
 use tokio::io::AsyncWriteExt;
 
 #[derive(Clone)]
@@ -42,6 +38,19 @@ impl From<hyper::http::Error> for SliceBreadServerError {
     }
 }
 
+fn get_header<T: std::str::FromStr>(
+    headers: &hyper::HeaderMap,
+    key: &str,
+) -> Result<T, SliceBreadServerError> {
+    headers
+        .get(key)
+        .ok_or_else(|| SliceBreadServerError::BadRequest(format!("Missing header: {}", key)))?
+        .to_str()
+        .map_err(|_| SliceBreadServerError::BadRequest(format!("Invalid header format: {}", key)))?
+        .parse::<T>()
+        .map_err(|_| SliceBreadServerError::BadRequest(format!("Invalid header value: {}", key)))
+}
+
 impl Service<Request<Incoming>> for SliceBreadServer {
     type Response = Response<String>;
     type Error = SliceBreadServerError;
@@ -53,50 +62,20 @@ impl Service<Request<Incoming>> for SliceBreadServer {
         let headers = req.headers().clone();
 
         Box::pin(async move {
-            let body = req.collect().await.unwrap().to_bytes();
-            let maybe_file_id = headers
-                .get("X-File-Id")
-                .and_then(|v| v.to_str().ok())
-                .map(String::from);
-
-            let Some(file_id) = maybe_file_id else {
-                return Ok(Response::builder()
-                    .status(400)
-                    .body("X-File-Id header is missing".to_string())?);
-            };
-
-            let maybe_chunk_index = headers
-                .get("X-Chunk-Index")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse::<usize>().ok());
-
-            let Some(chunk_index) = maybe_chunk_index else {
-                return Ok(Response::builder()
-                    .status(400)
-                    .body("X-Chunk-Index header is missing".to_string())?);
-            };
-
-            let maybe_total_chunks = headers
-                .get("X-Total-Chunks")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse::<usize>().ok());
-
-            let Some(total_chunks) = maybe_total_chunks else {
-                return Ok(Response::builder()
-                    .status(400)
-                    .body("X-Total-Chunks header is missing".to_string())?);
-            };
-
-            let maybe_file_name = headers
-                .get("X-File-Name")
-                .and_then(|v| v.to_str().ok())
-                .map(String::from);
-
-            let Some(file_name) = maybe_file_name else {
-                return Ok(Response::builder()
-                    .status(400)
-                    .body("X-File-Name header is missing".to_string())?);
-            };
+            let body = req
+                .collect()
+                .await
+                .map_err(|e| {
+                    SliceBreadServerError::InternalServerError(format!(
+                        "Failed to read body: {}",
+                        e
+                    ))
+                })?
+                .to_bytes();
+            let file_id: String = get_header(&headers, "X-File-Id")?;
+            let chunk_index: usize = get_header(&headers, "X-Chunk-Index")?;
+            let total_chunks: usize = get_header(&headers, "X-Total-Chunks")?;
+            let file_name: String = get_header(&headers, "X-File-Name")?;
 
             if chunk_index > total_chunks {
                 return Ok(Response::builder().status(400).body(format!(
