@@ -2,6 +2,8 @@ use http_body_util::BodyExt;
 use hyper::{Request, Response, body::Incoming, service::Service};
 use tokio::io::AsyncWriteExt;
 
+use crate::constants;
+
 #[derive(Clone)]
 pub struct SliceBreadServer {}
 
@@ -72,10 +74,10 @@ impl Service<Request<Incoming>> for SliceBreadServer {
                     ))
                 })?
                 .to_bytes();
-            let file_id: String = get_header(&headers, "X-File-Id")?;
-            let chunk_index: usize = get_header(&headers, "X-Chunk-Index")?;
-            let total_chunks: usize = get_header(&headers, "X-Total-Chunks")?;
-            let file_name: String = get_header(&headers, "X-File-Name")?;
+            let file_id: String = get_header(&headers, constants::HEADER_FILE_ID)?;
+            let chunk_index: usize = get_header(&headers, constants::HEADER_CHUNK_INDEX)?;
+            let total_chunks: usize = get_header(&headers, constants::HEADER_TOTAL_CHUNKS)?;
+            let file_name: String = get_header(&headers, constants::HEADER_FILE_NAME)?;
 
             if chunk_index > total_chunks {
                 return Ok(Response::builder().status(400).body(format!(

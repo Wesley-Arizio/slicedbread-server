@@ -7,9 +7,10 @@ use dotenvy::dotenv;
 
 use crate::server::SliceBreadServer;
 
+mod constants;
 mod server;
 
-use clap::{command, Parser};
+use clap::{Parser, command};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -19,11 +20,10 @@ pub struct Args {
     port: u16,
 }
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv().ok();
-    let args =  Args::parse();
+    let args = Args::parse();
     let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
 
     let listener = TcpListener::bind(addr).await?;
