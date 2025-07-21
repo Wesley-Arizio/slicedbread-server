@@ -3,13 +3,28 @@ use hyper_util::rt::TokioIo;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
+use dotenvy::dotenv;
+
 use crate::server::SliceBreadServer;
 
 mod server;
 
+use clap::{command, Parser};
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    /// Server address of the person to greet
+    #[arg(long, env = "API_PORT")]
+    port: u16,
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    dotenv().ok();
+    let args =  Args::parse();
+    let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
 
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
