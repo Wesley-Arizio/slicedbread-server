@@ -30,12 +30,14 @@ impl std::fmt::Display for SliceBreadServerError {
 
 impl From<std::io::Error> for SliceBreadServerError {
     fn from(value: std::io::Error) -> Self {
+        tracing::error!(%value, "Internal server error during upload");
         SliceBreadServerError::IoError(value)
     }
 }
 
 impl From<hyper::http::Error> for SliceBreadServerError {
     fn from(value: hyper::http::Error) -> Self {
+        tracing::error!(%value, "Internal server error during upload");
         SliceBreadServerError::HyperError(value)
     }
 }
@@ -79,14 +81,20 @@ impl Service<Request<Incoming>> for SliceBreadServer {
             let total_chunks: usize = get_header(&headers, constants::HEADER_TOTAL_CHUNKS)?;
             let file_name: String = get_header(&headers, constants::HEADER_FILE_NAME)?;
 
+            tracing::info!(file_id = %file_id, "Received chunk");
+            tracing::debug!("Received chunk index: {}", chunk_index);
+
             if chunk_index > total_chunks {
+                tracing::warn!(chunk_index, total_chunks, "Invalid chunk index");
                 return Ok(Response::builder().status(400).body(format!(
                     "Invalid chunk_index: {} >= total_chunks: {}",
                     chunk_index, total_chunks
                 ))?);
             }
 
-            tokio::fs::create_dir_all(format!("uploads/{}/", file_id)).await?;
+            let upload_dir = format!("uploads/{}/", file_id);
+            tracing::debug!(upload_dir = %upload_dir, "Creating upload directory");
+            tokio::fs::create_dir_all(upload_dir).await?;
 
             let chunk_file = format!("uploads/{}/chunk_{}.bin", file_id, chunk_index);
             let mut file = tokio::fs::File::create(chunk_file).await?;
@@ -99,12 +107,14 @@ impl Service<Request<Incoming>> for SliceBreadServer {
                 for i in 0..=total_chunks {
                     let chunk_file = format!("uploads/{}/chunk_{}.bin", file_id, i);
                     if !tokio::fs::try_exists(&chunk_file).await? {
+                        tracing::warn!(%file_id, missing_chunk = i, "Missing chunk during finalization");
                         return Ok(Response::builder()
                             .status(400)
                             .body(format!("Missing chunk {}", i))?);
                     }
                 }
 
+                tracing::info!(%file_id, "All chunks received, assembling final file");
                 let mut file =
                     tokio::fs::File::create(format!("uploads/{}/{}", file_id, file_name,)).await?;
                 for i in 0..=total_chunks {
@@ -114,6 +124,8 @@ impl Service<Request<Incoming>> for SliceBreadServer {
                     tokio::fs::remove_file(chunk_file).await?;
                 }
                 file.flush().await?;
+
+                tracing::info!(%file_id, file_name = %file_name, "Upload complete and file assembled");
             }
 
             Ok(Response::builder()

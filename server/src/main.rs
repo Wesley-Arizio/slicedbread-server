@@ -6,6 +6,7 @@ use tokio::net::TcpListener;
 use dotenvy::dotenv;
 
 use crate::server::SliceBreadServer;
+use tracing_subscriber::filter::EnvFilter;
 
 mod constants;
 mod server;
@@ -23,11 +24,17 @@ pub struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv().ok();
+
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_env_filter(EnvFilter::from_default_env()) // read RUST_LOG from env
+        .init();
+
     let args = Args::parse();
     let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
 
     let listener = TcpListener::bind(addr).await?;
-    println!("Listening on http://{}", addr);
+    tracing::info!("Listening on http://{}", addr);
 
     let server = SliceBreadServer {};
 
@@ -37,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let io = TokioIo::new(stream);
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new().serve_connection(io, server).await {
-                println!("Failed to serve connection: {:?}", err);
+                tracing::error!("Failed to serve connection: {:?}", err);
             }
         });
     }
