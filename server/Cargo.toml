@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-hyper = { version = "1.6.0", features = ["full"] }
-tokio = { version = "1.35", features = ["full"] }
+hyper = { version = "1.6.0", features = ["server", "client", "http1"]}
+tokio = { version = "1.35", features = ["fs", "rt","rt-multi-thread", "macros", "io-util"]}
 uuid = { version = "1.4", features = ["v4"] }
-hyper-util = { version = "0.1.15", features = ["full"]}
+hyper-util = { version = "0.1.15", features = ["tokio"]}
 futures-util = "0.3.31"
 bytes = "1"
 http-body-util = "0.1.3"
