@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("Listening on http://{}", addr);
 
-    let server = Arc::new(SliceBreadServer::new());
+    let server = Arc::new(SliceBreadServer::new(String::from("/uploads/")));
 
     loop {
         let (stream, _) = listener.accept().await?;
